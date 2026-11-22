@@ -53,7 +53,7 @@ Team membership does not automatically grant application admin access.
 
 | Action | RESIDENT | ADMIN |
 |--------|----------|-------|
-| Submit a maintenance report | Own account | Allowed |
+| Submit a maintenance report | Own account | No |
 | View maintenance reports | Own reports | All reports |
 | Start work and mark a report resolved | No | Yes |
 | Confirm resolution or reopen a report | Own reports within policy | No resident impersonation |
@@ -258,3 +258,404 @@ Each student makes real commits for their own component.
 Use pull requests and review changes before merging into main.
 Coordinate changes to this contract and shared files before implementation.
 Commit package-lock.json files and use npm ci after cloning.
+## 14. Internal API Contract Details
+
+This section defines implementation targets. These endpoints are not
+implemented merely because they are documented here.
+
+### 14.1 Common Internal Request Rules
+
+All endpoints below require:
+
+- X-Service-Name: the registered calling component.
+- X-Service-Key: that caller's private credential for the receiving component.
+- Authorization: Bearer <initiating-user-token>.
+- Content-Type: application/json for requests with a JSON body.
+
+The receiving component must:
+
+1. Authenticate the calling service.
+2. Check that the caller is permitted to use this endpoint.
+3. Authenticate the initiating user through identity.
+4. Enforce the required role and ownership.
+5. Validate the request before accessing or changing data.
+
+A caller credential alone never permits an operation.
+
+Use the existing data/requestId and error/requestId response envelopes.
+The examples below show the contents of data only.
+
+Reject unknown input properties with HTTP 400.
+
+Shared validation rules:
+
+- Identifiers must be valid UUIDs.
+- Timestamps must include a timezone and be normalized to UTC.
+- Text must be trimmed and checked for non-empty content and maximum length.
+- Do not accept a client-supplied application role.
+- Never return password hashes, session hashes, tokens, or service keys.
+
+Authentication errors:
+
+| Condition | HTTP status |
+| --- | --- |
+| Missing service authentication | 401 |
+| Invalid service credential or forbidden calling service | 403 |
+| Missing, invalid, expired, or disabled user session | 401 |
+| Authenticated user lacks the required permission | 403 |
+| Required dependency is unavailable | 503 |
+
+The existing introspection endpoint keeps its current contract.
+
+### 14.2 Service Credential Scope
+
+Use separate caller credentials for each receiving component.
+
+| Receiving component | Allowed caller | Configuration at receiver | Configuration at caller |
+| --- | --- | --- | --- |
+| Identity | Bookings | BOOKINGS_AUTH_KEY | AUTH_SERVICE_KEY |
+| Identity | Community | COMMUNITY_AUTH_KEY | AUTH_SERVICE_KEY |
+| Bookings | Maintenance | MAINTENANCE_AUTH_KEY | BOOKINGS_SERVICE_KEY |
+| Community | Maintenance | MAINTENANCE_AUTH_KEY | COMMUNITY_SERVICE_KEY |
+
+The two MAINTENANCE_AUTH_KEY values must be different secrets.
+
+Maintenance additionally requires:
+
+- BOOKINGS_BASE_URL: local default http://127.0.0.1:3002
+- COMMUNITY_BASE_URL: local default http://127.0.0.1:3003
+
+Base URLs must be configurable for deployment.
+
+Do not reuse a key across different receivers. Do not commit actual keys.
+
+Identity's existing caller credentials may authenticate the new identity
+lookups, but each lookup must explicitly allow only its documented caller.
+
+### 14.3 Active Unit Lookup
+
+Owner: Youssef, identity.
+Caller: community only.
+Initiating role: ADMIN only.
+
+GET /internal/v1/units/active
+
+Query parameters:
+
+- limit: optional integer, default 100, minimum 1, maximum 200.
+- cursor: optional opaque pagination cursor returned by this endpoint.
+
+Example response data:
+
+```json
+{
+  "units": [
+    {
+      "unitId": "11111111-1111-4111-8111-111111111111",
+      "buildingId": "22222222-2222-4222-8222-222222222222",
+      "unitNumber": "101"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Rules:
+
+- Return ACTIVE units only.
+- Do not require a unit to have a resident account.
+- Return no resident names, emails, or password information.
+- Use stable ordering and keyset pagination.
+- Return nextCursor as null when no further page exists.
+- Invalid cursors return 400 with INVALID_CURSOR.
+
+Community must fetch all pages before beginning invoice creation.
+If lookup fails, do not report successful invoice generation.
+
+The collected unit list is the input snapshot for that generation operation.
+The invoice unit/month uniqueness constraint remains mandatory.
+
+### 14.4 Booking Notification Recipient Lookup
+
+Owner: Youssef, identity.
+Caller: bookings only.
+Initiating roles: RESIDENT or ADMIN.
+
+POST /internal/v1/users/notification-recipient
+
+Request:
+
+```json
+{
+  "userId": "33333333-3333-4333-8333-333333333333"
+}
+```
+
+Example response data:
+
+```json
+{
+  "userId": "33333333-3333-4333-8333-333333333333",
+  "email": "resident@example.com",
+  "fullName": "Demo Resident"
+}
+```
+
+Rules:
+
+- A RESIDENT may request only their own recipient record.
+- An ADMIN may request the resident recipient for an authorized booking action.
+- Bookings derives userId from the stored booking, never from an
+  unverified notification-recipient field in a public request.
+- Identity returns only an ACTIVE RESIDENT linked to an ACTIVE unit.
+- A resident requesting another user's record receives 403.
+- A permitted lookup with no eligible recipient receives 404 with
+  RECIPIENT_NOT_FOUND.
+- Do not return unit occupants or unrelated user records.
+
+Use this lookup during confirmation and cancellation workflows.
+
+Persist the necessary email delivery payload and retry state after an
+authorized lookup. Never persist the initiating user's raw session token.
+
+If recipient lookup or email delivery fails after the booking transaction,
+keep the booking result and record notification work as pending or failed.
+Do not report the email as delivered.
+
+### 14.5 Facility Closure Preview
+
+Owner: Marwan, bookings.
+Caller: maintenance only.
+Initiating role: ADMIN only.
+
+POST /internal/v1/facility-closures/preview
+
+Request:
+
+```json
+{
+  "maintenanceRequestId": "44444444-4444-4444-8444-444444444444",
+  "facilityId": "55555555-5555-4555-8555-555555555555",
+  "startAt": "2026-12-01T08:00:00Z",
+  "endAt": "2026-12-01T12:00:00Z",
+  "reason": "Electrical maintenance"
+}
+```
+
+Example response data:
+
+```json
+{
+  "previewId": "66666666-6666-4666-8666-666666666666",
+  "expiresAt": "2026-11-30T15:10:00Z",
+  "facilityId": "55555555-5555-4555-8555-555555555555",
+  "startAt": "2026-12-01T08:00:00Z",
+  "endAt": "2026-12-01T12:00:00Z",
+  "affectedBookingCount": 2,
+  "requiresCancellationConfirmation": true
+}
+```
+
+Rules:
+
+- Maintenance first verifies that the source request exists, is OPEN or
+  IN_PROGRESS, and references the supplied facility.
+- Bookings trusts this source validation only from the authenticated
+  maintenance caller; it independently validates the admin and facility.
+- The facility must exist and be ACTIVE.
+- startAt must be in the future and endAt must be after startAt.
+- reason must contain 3 to 1000 characters.
+- Count overlapping CONFIRMED bookings using half-open time intervals.
+- Reject overlapping ACTIVE closures with 409 CLOSURE_CONFLICT.
+- Preview does not create a closure or cancel bookings.
+- Store the preview with its validated input, initiating admin,
+  affected booking identifiers, and expiry.
+- Initial preview lifetime: 10 minutes.
+- Return 200.
+
+The preview must remain usable across Lambda invocations; do not keep it
+only in process memory.
+
+### 14.6 Facility Closure Confirmation
+
+Owner: Marwan, bookings.
+Caller: maintenance only.
+Initiating role: ADMIN only.
+
+POST /internal/v1/facility-closures
+
+Requires Idempotency-Key.
+
+Request:
+
+```json
+{
+  "previewId": "66666666-6666-4666-8666-666666666666",
+  "confirmAffectedBookings": true
+}
+```
+
+Example response data:
+
+```json
+{
+  "closureId": "77777777-7777-4777-8777-777777777777",
+  "maintenanceRequestId": "44444444-4444-4444-8444-444444444444",
+  "facilityId": "55555555-5555-4555-8555-555555555555",
+  "status": "ACTIVE",
+  "cancelledBookingCount": 2,
+  "notifications": {
+    "state": "PENDING",
+    "pendingCount": 2
+  }
+}
+```
+
+Rules:
+
+- Maintenance revalidates the source request before requesting confirmation.
+- The preview must belong to the initiating admin.
+- Unknown preview returns 404.
+- Expired or consumed preview returns 409 PREVIEW_UNAVAILABLE,
+  except for an already completed idempotent retry.
+- If affected bookings exist and confirmation is false, return
+  409 CANCELLATION_CONFIRMATION_REQUIRED.
+- Under a facility lock, recheck facility state, closure conflicts,
+  interval validity, and affected bookings.
+- If the affected booking set changed, return 409 PREVIEW_OUTDATED.
+  Require a fresh preview and renewed admin confirmation.
+- Create the closure, cancel affected bookings with the recorded reason,
+  create notification jobs, consume the preview, and record the
+  idempotency result in one database transaction.
+- A failed transaction must not leave partial cancellations.
+- Return 201 after successful creation.
+- Return notification state NOT_REQUIRED with pendingCount 0 when
+  no bookings were cancelled.
+
+The closure result does not mean emails have already been delivered.
+
+All booking and closure mutations must follow the agreed facility-locking
+protocol, including concurrent cancellation and facility changes.
+
+### 14.7 Maintenance Announcement Draft
+
+Owner: Malek, community.
+Caller: maintenance only.
+Initiating role: ADMIN only.
+
+POST /internal/v1/announcements/drafts
+
+Requires Idempotency-Key.
+
+Request:
+
+```json
+{
+  "maintenanceRequestId": "44444444-4444-4444-8444-444444444444",
+  "title": "Facility maintenance",
+  "body": "The facility will be temporarily unavailable during maintenance.",
+  "audienceType": "ALL",
+  "buildingId": null
+}
+```
+
+Example response data:
+
+```json
+{
+  "announcementId": "88888888-8888-4888-8888-888888888888",
+  "maintenanceRequestId": "44444444-4444-4444-8444-444444444444",
+  "status": "DRAFT",
+  "audienceType": "ALL",
+  "buildingId": null
+}
+```
+
+Rules:
+
+- Maintenance verifies that the source maintenance request exists.
+- For BUILDING targeting, maintenance verifies the building against
+  identity data it is permitted to access before making the request.
+- Community accepts these source assertions only from the authenticated
+  maintenance caller and still validates the initiating admin.
+- title: 3 to 150 characters.
+- body: 10 to 10000 characters.
+- audienceType: ALL or BUILDING.
+- ALL requires buildingId to be absent or null.
+- BUILDING requires a valid buildingId.
+- Store the authenticated admin as createdBy.
+- Always create DRAFT; this endpoint cannot publish or schedule.
+- Do not accept status, approvedBy, or createdBy as request input.
+- Create the draft and record the idempotency result atomically.
+- Return 201.
+
+An admin reviews the draft through community's normal management APIs.
+
+### 14.8 Mutation Idempotency
+
+Use Idempotency-Key on closure confirmation and announcement-draft creation,
+as well as invoice generation and payment recording.
+
+- The key must be a client-generated UUID.
+- Scope stored keys by caller, initiating user, endpoint, and key.
+- Store a fingerprint of the validated request payload.
+- The same key and same payload replay the recorded status and result.
+- Reusing a key with a different payload returns 409 IDEMPOTENCY_CONFLICT.
+- Concurrent identical requests must not create duplicate operations.
+- An operation still in progress may return 409 OPERATION_IN_PROGRESS.
+- Do not permanently cache transient failures as completed operations.
+- Authenticate and authorize every retry before returning a stored result.
+- Retain mutation records for the project lifetime in the initial design.
+
+A lost HTTP response after commit must be recoverable by retrying with
+the original key and payload.
+
+### 14.9 Timeouts and Partial Failure
+
+- Initial internal HTTP timeout: 10 seconds, configurable.
+- Propagate a valid requestId for related logging.
+- A requestId is for tracing, not authorization or idempotency.
+- Retry transient failures with bounded backoff.
+- Mutations must reuse their original idempotency key and payload.
+- Do not automatically retry validation or permission failures.
+- Never store raw user tokens for later retry jobs.
+
+Maintenance tracks closure and announcement steps separately.
+
+If closure confirmation succeeds but draft creation fails:
+
+- Keep the closure.
+- Record announcement work as pending.
+- Show the completed closure and pending announcement separately.
+- Do not claim that the entire workflow succeeded.
+
+Later user-authorized retries require a current valid admin session.
+Notification delivery jobs may retry using their previously authorized,
+persisted delivery payload without retaining the user's session token.
+
+Use a durable worker or an explicit administrative retry mechanism.
+Do not start untracked background tasks after a Lambda response.
+
+### 14.10 Implementation Ownership
+
+| Work | Owner |
+| --- | --- |
+| Active-unit and recipient identity APIs | Youssef |
+| Maintenance integration calls and pending-operation tracking | Youssef |
+| Closure preview, confirmation, locking, and notification jobs | Marwan |
+| Announcement-draft endpoint and draft idempotency | Malek |
+| Component-specific migrations and tests | Respective component owner |
+
+Each owner adds new numbered migrations for the required tables.
+Do not modify already executed migrations.
+
+Before merging dependent integrations, test:
+
+- Allowed and forbidden callers.
+- Admin and resident permissions.
+- Ownership failures.
+- Invalid payloads.
+- Changed and expired previews.
+- Concurrent booking and closure requests.
+- Identical retries and conflicting idempotency payloads.
+- Dependency failures and recovery after a lost response.

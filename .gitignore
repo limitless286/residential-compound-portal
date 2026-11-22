@@ -155,3 +155,20 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# Private environment configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated files
+node_modules/
+coverage/
+dist/
+*.log
+
+# Local credentials and backups
+.aws/
+*.pem
+*.key
+backups/

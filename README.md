@@ -180,4 +180,9 @@ GitHub shares source code and configuration, not local runtime data.
 ## Current Status
 
 The local Floci development environment is configured.
-Application code and service deployment scripts are not implemented yet.
+Shared authentication, database setup, and local service integration are implemented. Business workflows, frontend screens, and cloud deployment remain.
+
+## Team Implementation Guide
+
+See [Team handoff](docs/team-handoff.md) and [Shared contract](docs/shared-contract.md).
+

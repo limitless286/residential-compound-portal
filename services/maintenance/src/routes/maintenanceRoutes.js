@@ -1,4 +1,5 @@
-﻿import { reopenRequest } from '../controllers/maintenanceReopenController.js';
+﻿import { changePriority } from '../controllers/maintenancePriorityController.js';
+import { reopenRequest } from '../controllers/maintenanceReopenController.js';
 import { confirmResolution } from '../controllers/maintenanceResidentController.js';
 import express from 'express';
 import {
@@ -61,6 +62,13 @@ router.patch(
   reopenRequest
 );
 
+router.patch(
+  '/:id/priority',
+  requireRole('ADMIN'),
+  changePriority
+);
+
 export default router;
+
 
 

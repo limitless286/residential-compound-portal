@@ -1,4 +1,5 @@
-﻿import maintenanceRoutes from './routes/maintenanceRoutes.js';
+﻿import maintenanceAdminRoutes from './routes/maintenanceAdminRoutes.js';
+import maintenanceRoutes from './routes/maintenanceRoutes.js';
 import internalAuthRoutes from './routes/internalAuthRoutes.js';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
@@ -23,6 +24,7 @@ app.get('/api/v1/health', (req, res) => {
 });
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/admin', maintenanceAdminRoutes);
 app.use('/api/v1/maintenance-requests', maintenanceRoutes);
 app.use('/internal/v1/auth', internalAuthRoutes);
 
@@ -73,5 +75,6 @@ app.use((error, req, res, next) => {
 });
 
 export default app;
+
 
 

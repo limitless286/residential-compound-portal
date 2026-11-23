@@ -387,3 +387,105 @@ export async function reopenMaintenanceRequest({
     client.release();
   }
 }
+
+export async function updateMaintenancePriority({
+  id,
+  actorUserId,
+  priority,
+  reason
+}) {
+  const client = await database.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const current = await client.query(
+      `SELECT *
+       FROM maintenance.requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+
+    if (current.rowCount === 0) {
+      throw httpError(
+        404,
+        'REQUEST_NOT_FOUND',
+        'Maintenance request not found.'
+      );
+    }
+
+    const row = current.rows[0];
+
+    if (!['OPEN', 'IN_PROGRESS'].includes(row.status)) {
+      throw httpError(
+        409,
+        'INVALID_STATUS_TRANSITION',
+        'Priority can change only for open or in-progress requests.'
+      );
+    }
+
+    if (row.priority === priority) {
+      throw httpError(
+        409,
+        'PRIORITY_UNCHANGED',
+        'The request already has this priority.'
+      );
+    }
+
+    const updated = await client.query(
+      `UPDATE maintenance.requests AS request
+       SET priority = policy.priority,
+           due_at = COALESCE(
+             (
+               SELECT MAX(history.created_at)
+               FROM maintenance.request_history AS history
+               WHERE history.request_id = request.id
+                 AND history.event_type = 'REOPENED'
+             ),
+             request.created_at
+           ) + policy.resolution_hours * INTERVAL '1 hour',
+           updated_at = clock_timestamp()
+       FROM maintenance.priority_policies AS policy
+       WHERE request.id = $1
+         AND policy.priority = $2::varchar
+       RETURNING request.*`,
+      [id, priority]
+    );
+
+    if (updated.rowCount !== 1) {
+      throw httpError(
+        503,
+        'MAINTENANCE_POLICY_UNAVAILABLE',
+        'Maintenance priority configuration is unavailable.'
+      );
+    }
+
+    await client.query(
+      `INSERT INTO maintenance.request_history (
+         request_id,
+         actor_user_id,
+         event_type,
+         previous_status,
+         next_status,
+         reason
+       )
+       VALUES ($1, $2, 'PRIORITY_CHANGED', $3, $3, $4)`,
+      [
+        id,
+        actorUserId,
+        row.status,
+        `Priority changed from ${row.priority} to ${priority}. ${reason}`
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    return mapRequest(updated.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}

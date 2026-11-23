@@ -1,4 +1,9 @@
-﻿import express from 'express';
+﻿import { editResidentRecord } from '../controllers/residentEditController.js';
+import { listResidentRecords, changeResidentStatusRecord } from '../controllers/residentManagementController.js';
+import { createResidentRecord } from '../controllers/residentController.js';
+import { createUnitRecord, listUnitRecords } from '../controllers/unitController.js';
+import { createBuildingRecord, listBuildingRecords } from '../controllers/buildingController.js';
+import express from 'express';
 import {
   requireAuthentication
 } from '../middleware/requireAuthentication.js';
@@ -18,4 +23,22 @@ router.use(requireAuthentication, requireRole('ADMIN'));
 
 router.get('/maintenance-overview', maintenanceOverview);
 
+router.get('/buildings', listBuildingRecords);
+router.post('/buildings', createBuildingRecord);
+
+router.get('/units', listUnitRecords);
+router.post('/units', createUnitRecord);
+
+router.post('/residents', createResidentRecord);
+
+router.get('/residents', listResidentRecords);
+router.patch('/residents/:id/status', changeResidentStatusRecord);
+
+router.patch('/residents/:id', editResidentRecord);
+
 export default router;
+
+
+
+
+

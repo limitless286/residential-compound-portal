@@ -318,3 +318,131 @@ button:disabled { cursor: wait; opacity: .65; }
   .new-request-trigger { width: 100%; }
   .request-dialog { padding: 20px; }
 }
+
+/* Request workflow actions */
+.request-actions {
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.request-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.request-action-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+.request-action-card h4 { margin: 0 0 16px; font-size: 16px; }
+.request-action-card > .muted { font-size: 13px; margin-bottom: 20px; }
+.request-action-card .field { font-size: 13px; font-weight: 600; }
+.request-action-card textarea,
+.request-action-card select { font-weight: 400; }
+
+/* Admin overview */
+.overview-section { margin-top: 36px; }
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-top: 3px solid #7b8ba3;
+  border-radius: 10px;
+  background: white;
+}
+.overview-card span { color: var(--muted); font-size: 13px; }
+.overview-card strong { font-size: 32px; font-weight: 650; }
+.overview-amber { border-top-color: #bb8a21; }
+.overview-blue { border-top-color: #356bc3; }
+.overview-green { border-top-color: #32855d; }
+.overview-red { border-top-color: #c24e4e; }
+.overview-red strong { color: #a32929; }
+.priority-summary {
+  padding: 15px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.overdue-panel {
+  padding: 24px;
+  border: 1px solid #edc6c6;
+  border-radius: 10px;
+  background: white;
+}
+.overdue-panel h3 { margin-top: 0; font-size: 18px; }
+.overdue-panel > .muted { font-size: 13px; }
+.overdue-list { padding: 0; margin: 0; list-style: none; }
+.overdue-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.overdue-list strong { font-size: 14px; overflow-wrap: anywhere; }
+.overdue-list span { display: block; margin-top: 7px; font-size: 12px; }
+@media (max-width: 650px) {
+  .overview-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-card { padding: 16px; }
+}
+
+/* Workspace navigation */
+.workspace-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.workspace-nav-button {
+  padding: 12px 20px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #52637b;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.workspace-nav-button[aria-pressed="true"] {
+  border-color: #c8d9f7;
+  background: #e8f0ff;
+  color: #234f9b;
+}
+.workspace-nav-button:hover { background: #e8eef7; }
+.portal-workspace-pages > div { padding-top: 28px; }
+.resident-email {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.field-help { font-size: 12px; line-height: 1.6; }
+.resident-actions-cell { min-width: 250px; }
+.resident-actions-cell .button { margin: 4px 8px 4px 0; }
+
+.property-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.property-tabs button[aria-pressed="true"] {
+  background: #2358bd;
+  color: white;
+}

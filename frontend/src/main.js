@@ -1,4 +1,4 @@
-﻿import { mountMaintenanceWorkspace } from './maintenancePage.js';
+﻿import { mountPortalWorkspace } from './portalWorkspace.js';
 import './style.css';
 
 const loginView = document.querySelector('#loginView');
@@ -104,7 +104,7 @@ function showPortal(user) {
 
   cleanupMaintenanceWorkspace?.();
 
-  cleanupMaintenanceWorkspace = mountMaintenanceWorkspace({
+  cleanupMaintenanceWorkspace = mountPortalWorkspace({
     apiRequest,
     user,
     onUnauthorized: () =>
@@ -187,4 +187,5 @@ logoutButton.addEventListener('click', async () => {
     logoutButton.disabled = false;
   }
 });
+
 

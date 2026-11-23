@@ -1,4 +1,6 @@
-﻿import { mountRequestCreation } from './createRequest.js';
+﻿import { mountMaintenanceOverview } from './maintenanceOverview.js';
+import { mountRequestActions } from './requestActions.js';
+import { mountRequestCreation } from './createRequest.js';
 const statusLabels = {
   OPEN: 'Open',
   IN_PROGRESS: 'In progress',
@@ -53,9 +55,9 @@ function badge(value) {
   );
 }
 
-export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) {
+export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized, container = document.querySelector('.workspace') }) {
   const root = element('section', undefined, 'maintenance-section');
-  document.querySelector('.workspace').append(root);
+  container.append(root);
 
   root.innerHTML = `
     <div class="section-heading">
@@ -131,6 +133,7 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
 
   let active = true;
   let viewVersion = 0;
+  let cleanupRequestActions = null;
   let offset = 0;
   const limit = 10;
 
@@ -154,6 +157,8 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
   }
 
   async function loadList() {
+    cleanupRequestActions?.();
+    cleanupRequestActions = null;
     const version = ++viewVersion;
     clearError();
 
@@ -225,7 +230,9 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
     }
   }
 
-  async function loadDetails(id) {
+  async function loadDetails(id, notice = '') {
+    cleanupRequestActions?.();
+    cleanupRequestActions = null;
     const version = ++viewVersion;
     clearError();
 
@@ -289,6 +296,24 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
 
       card.append(history);
       container.replaceChildren(card);
+
+      if (notice) {
+        const message = element('p', notice, 'submission-notice');
+        message.setAttribute('role', 'status');
+        card.prepend(message);
+      }
+
+      cleanupRequestActions = mountRequestActions({
+        container: card,
+        request,
+        user,
+        apiRequest,
+        onUpdated: async () => {
+          await loadDetails(id, 'Request updated successfully.');
+          await overview.refresh();
+        },
+        onUnauthorized
+      });
     } catch (error) {
       if (!active || version !== viewVersion) return;
       container.replaceChildren();
@@ -318,6 +343,17 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
 
   loadList();
 
+  const overview = mountMaintenanceOverview({
+    anchor: root,
+    user,
+    apiRequest,
+    onUnauthorized,
+    onOpenRequest: (id) => {
+      loadDetails(id);
+      root.scrollIntoView({ block: 'start' });
+    }
+  });
+
   const cleanupRequestCreation = mountRequestCreation({
     anchor: root,
     apiRequest,
@@ -330,10 +366,15 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized }) 
   });
 
   return () => {
+    cleanupRequestActions?.();
+    overview.destroy();
     cleanupRequestCreation();
     active = false;
     viewVersion++;
     root.remove();
   };
 }
+
+
+
 

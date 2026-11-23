@@ -1,0 +1,121 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Resident services and community management."
+    />
+    <title>Residential Compound Portal</title>
+  </head>
+  <body>
+    <main>
+      <section id="loginView" class="login-layout">
+        <div class="welcome-panel">
+          <a class="brand" href="/">
+            <span class="brand-mark" aria-hidden="true">RC</span>
+            <span>Residential<br />Compound Portal</span>
+          </a>
+
+          <div class="welcome-copy">
+            <span class="eyebrow">YOUR COMMUNITY, CONNECTED</span>
+            <h1>A simpler way<br />to feel at home.</h1>
+            <p>
+              Stay connected with your community and manage
+              everyday resident services in one place.
+            </p>
+
+            <div class="service-tags">
+              <span>Maintenance</span>
+              <span>Facilities</span>
+              <span>Community</span>
+            </div>
+          </div>
+
+          <p class="panel-footer">Team 34 · Resident Services</p>
+        </div>
+
+        <div class="form-panel">
+          <div class="login-card">
+            <span class="eyebrow">RESIDENT & ADMIN ACCESS</span>
+            <h2>Welcome back</h2>
+            <p class="muted">Sign in to access your community portal.</p>
+
+            <form id="loginForm">
+              <div class="field">
+                <label for="login">Email or username</label>
+                <input
+                  id="login"
+                  name="login"
+                  type="text"
+                  autocomplete="username"
+                  maxlength="254"
+                  required
+                />
+              </div>
+
+              <div class="field">
+                <label for="password">Password</label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  maxlength="128"
+                  required
+                />
+              </div>
+
+              <p id="loginError" class="error-message" role="alert" hidden></p>
+
+              <button id="loginButton" class="button primary" type="submit">
+                Sign in
+              </button>
+            </form>
+
+            <p class="help-text">
+              Need an account? Contact your compound administrator.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="portalView" class="portal-layout" hidden>
+        <header class="portal-header">
+          <a class="brand dark-brand" href="/">
+            <span class="brand-mark" aria-hidden="true">RC</span>
+            <span>Residential Compound Portal</span>
+          </a>
+          <button id="logoutButton" class="button secondary" type="button">
+            Sign out
+          </button>
+        </header>
+
+        <div class="workspace">
+          <span class="eyebrow">YOUR WORKSPACE</span>
+          <h1 id="welcomeTitle"></h1>
+          <p class="muted">Welcome to your community portal.</p>
+
+          <div class="profile-card">
+            <h2>Account details</h2>
+            <dl>
+              <div>
+                <dt>Email</dt>
+                <dd id="profileEmail"></dd>
+              </div>
+              <div>
+                <dt>Access</dt>
+                <dd id="profileRole"></dd>
+              </div>
+            </dl>
+          </div>
+
+          <p id="portalError" class="error-message" role="alert" hidden></p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

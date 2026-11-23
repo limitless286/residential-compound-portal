@@ -1,4 +1,5 @@
-﻿import maintenanceAdminRoutes from './routes/maintenanceAdminRoutes.js';
+﻿import internalIdentityRoutes from './routes/internalIdentityRoutes.js';
+import maintenanceAdminRoutes from './routes/maintenanceAdminRoutes.js';
 import maintenanceRoutes from './routes/maintenanceRoutes.js';
 import internalAuthRoutes from './routes/internalAuthRoutes.js';
 import express from 'express';
@@ -27,6 +28,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/admin', maintenanceAdminRoutes);
 app.use('/api/v1/maintenance-requests', maintenanceRoutes);
 app.use('/internal/v1/auth', internalAuthRoutes);
+app.use('/internal/v1', internalIdentityRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -75,6 +77,7 @@ app.use((error, req, res, next) => {
 });
 
 export default app;
+
 
 
 

@@ -35,3 +35,20 @@ export async function selectBuildings({ limit, offset }) {
     }
   };
 }
+
+export async function updateBuilding({ id, code, name }) {
+  const result = await database.query(
+    `UPDATE identity.buildings
+     SET code = COALESCE($2::text, code),
+         name = COALESCE($3::text, name),
+         updated_at = clock_timestamp()
+     WHERE id = $1
+     RETURNING
+       id, code, name,
+       created_at AS "createdAt",
+       updated_at AS "updatedAt"`,
+    [id, code ?? null, name ?? null]
+  );
+
+  return result.rows[0] ?? null;
+}

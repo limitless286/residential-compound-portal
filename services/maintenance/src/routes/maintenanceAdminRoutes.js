@@ -1,4 +1,6 @@
-﻿import { editResidentRecord } from '../controllers/residentEditController.js';
+﻿import { editUnitRecord } from '../controllers/unitEditController.js';
+import { editBuildingRecord } from '../controllers/buildingEditController.js';
+import { editResidentRecord } from '../controllers/residentEditController.js';
 import { listResidentRecords, changeResidentStatusRecord } from '../controllers/residentManagementController.js';
 import { createResidentRecord } from '../controllers/residentController.js';
 import { createUnitRecord, listUnitRecords } from '../controllers/unitController.js';
@@ -36,7 +38,13 @@ router.patch('/residents/:id/status', changeResidentStatusRecord);
 
 router.patch('/residents/:id', editResidentRecord);
 
+router.patch('/buildings/:id', editBuildingRecord);
+
+router.patch('/units/:id', editUnitRecord);
+
 export default router;
+
+
 
 
 

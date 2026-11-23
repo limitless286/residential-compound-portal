@@ -1,4 +1,5 @@
-﻿import internalAuthRoutes from './routes/internalAuthRoutes.js';
+﻿import maintenanceRoutes from './routes/maintenanceRoutes.js';
+import internalAuthRoutes from './routes/internalAuthRoutes.js';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import authRoutes from './routes/authRoutes.js';
@@ -22,6 +23,7 @@ app.get('/api/v1/health', (req, res) => {
 });
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/maintenance-requests', maintenanceRoutes);
 app.use('/internal/v1/auth', internalAuthRoutes);
 
 app.use((req, res) => {
@@ -48,7 +50,7 @@ app.use((error, req, res, next) => {
     status = 413;
     code = 'PAYLOAD_TOO_LARGE';
     message = 'Request body is too large.';
-  } else if (![400, 401, 403, 503].includes(status)) {
+  } else if (![400, 401, 403, 404, 409, 429, 503].includes(status)) {
     status = 500;
     code = 'INTERNAL_ERROR';
     message = 'An unexpected error occurred.';
@@ -71,4 +73,5 @@ app.use((error, req, res, next) => {
 });
 
 export default app;
+
 

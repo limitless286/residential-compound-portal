@@ -1,7 +1,11 @@
 // MOCKED tests for invoice ownership rules. No database.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getInvoice, listInvoices } from '../src/services/invoiceQueryService.js';
+import {
+  getInvoice,
+  listInvoices,
+  listOverdueInvoices
+} from '../src/services/invoiceQueryService.js';
 import { validateFeePolicy } from '../src/services/feePolicyService.js';
 
 const UNIT_OWN = '11111111-1111-4111-8111-111111111111';
@@ -79,9 +83,70 @@ test('reports nextOffset when more invoices exist', async () => {
   assert.equal(result.nextOffset, 5);
 });
 
+const PAYMENT = {
+  id: 'p1',
+  invoiceId: INVOICE_ID,
+  amountMinor: 1000,
+  paymentReference: 'REF-1',
+  paymentMethod: 'CASH',
+  paidAt: '2026-11-20T08:00:00.000Z',
+  recordedBy: 'admin-id',
+  createdAt: '2026-11-20T08:00:00.000Z'
+};
+
 function detailDeps(invoice) {
-  return { selectInvoiceById: async () => invoice };
+  return {
+    selectInvoiceById: async () => invoice,
+    selectPaymentsForInvoice: async () => [PAYMENT]
+  };
 }
+
+test('invoice detail includes payment history; residents do not see recordedBy', async () => {
+  const forResident = await getInvoice(
+    { user: RESIDENT, invoiceId: INVOICE_ID },
+    detailDeps({ id: INVOICE_ID, unitId: UNIT_OWN })
+  );
+  assert.equal(forResident.payments.length, 1);
+  assert.equal('recordedBy' in forResident.payments[0], false);
+
+  const forAdmin = await getInvoice(
+    { user: ADMIN, invoiceId: INVOICE_ID },
+    detailDeps({ id: INVOICE_ID, unitId: UNIT_OWN })
+  );
+  assert.equal(forAdmin.payments[0].recordedBy, 'admin-id');
+});
+
+test('payment history is not loaded for another unit\'s invoice', async () => {
+  let paymentsLoaded = false;
+  await assert.rejects(
+    getInvoice({ user: RESIDENT, invoiceId: INVOICE_ID }, {
+      selectInvoiceById: async () => ({ id: INVOICE_ID, unitId: UNIT_OTHER }),
+      selectPaymentsForInvoice: async () => { paymentsLoaded = true; return []; }
+    }),
+    (error) => error.status === 403
+  );
+  assert.equal(paymentsLoaded, false);
+});
+
+test('overdue list returns totals and validates filters', async () => {
+  const captured = [];
+  const result = await listOverdueInvoices({ query: { unitId: UNIT_OWN, limit: '2' } }, {
+    selectOverdueInvoices: async (filters) => {
+      captured.push(filters);
+      return { overdueCount: 3, totalRemainingMinor: 450000, invoices: [{}, {}], hasMore: true };
+    }
+  });
+
+  assert.deepEqual(captured[0], { unitId: UNIT_OWN, limit: 2, offset: 0 });
+  assert.equal(result.overdueCount, 3);
+  assert.equal(result.totalRemainingMinor, 450000);
+  assert.equal(result.nextOffset, 2);
+
+  await assert.rejects(
+    listOverdueInvoices({ query: { status: 'PAID' } }, { selectOverdueInvoices: async () => ({}) }),
+    (error) => error.status === 400
+  );
+});
 
 test('a resident can read an invoice for their own unit', async () => {
   const invoice = await getInvoice(

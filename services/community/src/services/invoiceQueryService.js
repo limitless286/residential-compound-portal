@@ -1,8 +1,10 @@
 import { getDatabase } from '../config/database.js';
 import {
   selectInvoiceById,
-  selectInvoices
+  selectInvoices,
+  selectOverdueInvoices
 } from '../repositories/invoiceRepository.js';
+import { selectPaymentsForInvoice } from '../repositories/paymentRepository.js';
 import { httpError } from '../utils/httpError.js';
 import {
   invalidInput,
@@ -20,7 +22,11 @@ const MAX_OFFSET = 10000;
 
 const defaultDeps = {
   selectInvoices: (filters) => selectInvoices(getDatabase(), filters),
-  selectInvoiceById: (id) => selectInvoiceById(getDatabase(), id)
+  selectInvoiceById: (id) => selectInvoiceById(getDatabase(), id),
+  selectPaymentsForInvoice: (id) =>
+    selectPaymentsForInvoice(getDatabase(), id),
+  selectOverdueInvoices: (filters) =>
+    selectOverdueInvoices(getDatabase(), filters)
 };
 
 function parseBoundedInteger(value, field, defaultValue, min, max) {
@@ -96,5 +102,36 @@ export async function getInvoice({ user, invoiceId }, deps = defaultDeps) {
     );
   }
 
-  return invoice;
+  const payments = await deps.selectPaymentsForInvoice(id);
+
+  return {
+    ...invoice,
+    // recordedBy identifies an admin account; residents do not need it.
+    payments: ownUnitId === null
+      ? payments
+      : payments.map(({ recordedBy, ...payment }) => payment)
+  };
+}
+
+export async function listOverdueInvoices({ query }, deps = defaultDeps) {
+  requireQuery(query, ['unitId', 'limit', 'offset']);
+
+  const filters = {
+    unitId: query.unitId === undefined
+      ? undefined
+      : requireUuid(query.unitId, 'unitId'),
+    limit: parseBoundedInteger(query.limit, 'limit', DEFAULT_LIMIT, 1, MAX_LIMIT),
+    offset: parseBoundedInteger(query.offset, 'offset', 0, 0, MAX_OFFSET)
+  };
+
+  const result = await deps.selectOverdueInvoices(filters);
+
+  return {
+    overdueCount: result.overdueCount,
+    totalRemainingMinor: result.totalRemainingMinor,
+    invoices: result.invoices,
+    limit: filters.limit,
+    offset: filters.offset,
+    nextOffset: result.hasMore ? filters.offset + filters.limit : null
+  };
 }

@@ -75,6 +75,44 @@ export async function selectInvoices(db, {
   };
 }
 
+export async function selectOverdueInvoices(db, { unitId, limit, offset }) {
+  const values = [];
+  let unitCondition = '';
+
+  if (unitId) {
+    values.push(unitId);
+    unitCondition = 'AND b.unit_id = $1';
+  }
+
+  const summary = await db.query(
+    `SELECT
+       COUNT(*)::INTEGER AS "overdueCount",
+       COALESCE(SUM(b.remaining_amount_minor), 0)::BIGINT
+         AS "totalRemainingMinor"
+     FROM community.invoice_balances b
+     WHERE b.is_overdue ${unitCondition}`,
+    values
+  );
+
+  values.push(limit + 1, offset);
+
+  const result = await db.query(
+    `SELECT ${INVOICE_COLUMNS}
+     FROM community.invoice_balances b
+     WHERE b.is_overdue ${unitCondition}
+     ORDER BY b.due_date, b.unit_id, b.id
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values
+  );
+
+  return {
+    overdueCount: summary.rows[0].overdueCount,
+    totalRemainingMinor: Number(summary.rows[0].totalRemainingMinor),
+    invoices: result.rows.slice(0, limit),
+    hasMore: result.rows.length > limit
+  };
+}
+
 export async function selectInvoiceById(db, invoiceId) {
   const result = await db.query(
     `SELECT ${INVOICE_COLUMNS}

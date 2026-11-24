@@ -40,10 +40,37 @@ after(() => {
   identityServer?.close();
 });
 
-async function call(path, headers = {}) {
-  const response = await fetch(baseUrl + path, { headers });
+async function call(path, headers = {}, { method = 'GET', body } = {}) {
+  const response = await fetch(baseUrl + path, {
+    method,
+    headers: body === undefined
+      ? headers
+      : { ...headers, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
   return { status: response.status, body: await response.json() };
 }
+
+function identityReturns(role) {
+  identityResponse = {
+    status: 200,
+    body: {
+      data: {
+        userId: '33333333-3333-4333-8333-333333333333',
+        email: 'user@example.com',
+        fullName: 'Demo User',
+        role,
+        unitId: role === 'RESIDENT'
+          ? '11111111-1111-4111-8111-111111111111'
+          : null,
+        buildingId: null,
+        status: 'ACTIVE'
+      }
+    }
+  };
+}
+
+const AUTH_HEADER = { Authorization: 'Bearer ' + 'b'.repeat(64) };
 
 test('health endpoint returns the success envelope', async () => {
   const { status, body } = await call('/api/v1/health');
@@ -102,4 +129,43 @@ test('valid session returns the authenticated user', async () => {
   assert.equal(status, 200);
   assert.equal(body.data.role, 'RESIDENT');
   assert.equal(body.data.unitId, '11111111-1111-4111-8111-111111111111');
+});
+
+test('residents cannot reach admin fee endpoints', async () => {
+  identityReturns('RESIDENT');
+
+  for (const [method, path, body] of [
+    ['GET', '/api/v1/admin/fee-policy'],
+    ['PUT', '/api/v1/admin/fee-policy', { monthlyAmountMinor: 1, dueDay: 1 }],
+    ['POST', '/api/v1/admin/invoice-generations', { billingPeriod: '2026-12' }]
+  ]) {
+    const { status, body: response } = await call(path, AUTH_HEADER, { method, body });
+    assert.equal(status, 403, method + ' ' + path);
+    assert.equal(response.error.code, 'FORBIDDEN');
+  }
+});
+
+test('admin endpoints require authentication', async () => {
+  const { status } = await call('/api/v1/admin/fee-policy');
+  assert.equal(status, 401);
+});
+
+test('invoice generation requires an Idempotency-Key', async () => {
+  identityReturns('ADMIN');
+  const { status, body } = await call(
+    '/api/v1/admin/invoice-generations',
+    AUTH_HEADER,
+    { method: 'POST', body: { billingPeriod: '2026-12' } }
+  );
+  assert.equal(status, 400);
+  assert.equal(body.error.code, 'IDEMPOTENCY_KEY_REQUIRED');
+});
+
+test('a resident cannot choose another unit when listing invoices', async () => {
+  identityReturns('RESIDENT');
+  const { status } = await call(
+    '/api/v1/invoices?unitId=22222222-2222-4222-8222-222222222222',
+    AUTH_HEADER
+  );
+  assert.equal(status, 400);
 });

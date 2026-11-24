@@ -5,6 +5,8 @@ import { isDatabaseUnavailable } from './config/database.js';
 import { logAction } from './utils/logger.js';
 import adminRoutes from './routes/adminRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
+import announcementRoutes from './routes/announcementRoutes.js';
+import internalRoutes from './routes/internalRoutes.js';
 
 // Statuses whose code and message were set deliberately by our own code
 // and are safe to return to the client.
@@ -36,13 +38,18 @@ app.get('/api/v1/auth/me', requireAuthentication, (req, res) => {
   });
 });
 
-app.use(['/api/v1/admin', '/api/v1/invoices'], (req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store');
-  next();
-});
+app.use(
+  ['/api/v1/admin', '/api/v1/invoices', '/api/v1/announcements', '/internal/v1'],
+  (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  }
+);
 
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/announcements', announcementRoutes);
+app.use('/internal/v1', internalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

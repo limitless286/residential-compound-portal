@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 
 const TOKEN = 'b'.repeat(64);
+const MAINTENANCE_KEY = 'c'.repeat(64);
 let identityResponse = { status: 200, body: {} };
 let identityServer;
 let appServer;
@@ -29,6 +30,7 @@ before(async () => {
   process.env.SERVICE_NAME = 'community';
   process.env.AUTH_SERVICE_KEY = 'a'.repeat(64);
   process.env.IDENTITY_BASE_URL = 'http://127.0.0.1:' + identityPort;
+  process.env.MAINTENANCE_AUTH_KEY = MAINTENANCE_KEY;
 
   const { default: app } = await import('../src/app.js');
   appServer = createServer(app);
@@ -169,5 +171,120 @@ test('a resident cannot choose another unit when listing invoices', async () => 
     '/api/v1/invoices?unitId=22222222-2222-4222-8222-222222222222',
     AUTH_HEADER
   );
+  assert.equal(status, 400);
+});
+
+const DRAFT_PATH = '/internal/v1/announcements/drafts';
+const DRAFT_BODY = {
+  maintenanceRequestId: '44444444-4444-4444-8444-444444444444',
+  title: 'Facility maintenance',
+  body: 'The facility will be temporarily unavailable during maintenance.',
+  audienceType: 'ALL',
+  buildingId: null
+};
+
+function serviceHeaders(name = 'maintenance', key = MAINTENANCE_KEY) {
+  return { 'X-Service-Name': name, 'X-Service-Key': key };
+}
+
+test('internal draft: missing service authentication returns 401', async () => {
+  identityReturns('ADMIN');
+  const { status, body } = await call(DRAFT_PATH, AUTH_HEADER, { method: 'POST', body: DRAFT_BODY });
+  assert.equal(status, 401);
+  assert.equal(body.error.code, 'SERVICE_AUTH_REQUIRED');
+});
+
+test('internal draft: wrong key, unknown or other callers return 403', async () => {
+  identityReturns('ADMIN');
+
+  for (const headers of [
+    serviceHeaders('maintenance', 'd'.repeat(64)),
+    serviceHeaders('maintenance', 'not-a-key'),
+    serviceHeaders('bookings', MAINTENANCE_KEY),
+    serviceHeaders('community', 'a'.repeat(64))
+  ]) {
+    const { status, body } = await call(DRAFT_PATH, { ...AUTH_HEADER, ...headers },
+      { method: 'POST', body: DRAFT_BODY });
+    assert.equal(status, 403, JSON.stringify(headers));
+    assert.equal(body.error.code, 'SERVICE_FORBIDDEN');
+  }
+});
+
+test('internal draft: a valid caller still needs a valid user session', async () => {
+  const { status, body } = await call(DRAFT_PATH, serviceHeaders(), { method: 'POST', body: DRAFT_BODY });
+  assert.equal(status, 401);
+  assert.equal(body.error.code, 'UNAUTHORIZED');
+});
+
+test('internal draft: the initiating user must be an admin', async () => {
+  identityReturns('RESIDENT');
+  const { status } = await call(DRAFT_PATH, { ...AUTH_HEADER, ...serviceHeaders() },
+    { method: 'POST', body: DRAFT_BODY });
+  assert.equal(status, 403);
+});
+
+test('internal draft: requires Idempotency-Key and rejects publication fields', async () => {
+  identityReturns('ADMIN');
+  const headers = { ...AUTH_HEADER, ...serviceHeaders() };
+
+  const noKey = await call(DRAFT_PATH, headers, { method: 'POST', body: DRAFT_BODY });
+  assert.equal(noKey.status, 400);
+  assert.equal(noKey.body.error.code, 'IDEMPOTENCY_KEY_REQUIRED');
+
+  const withStatus = await call(DRAFT_PATH,
+    { ...headers, 'Idempotency-Key': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    { method: 'POST', body: { ...DRAFT_BODY, status: 'PUBLISHED' } });
+  assert.equal(withStatus.status, 400);
+});
+
+test('internal draft: missing or reused receiver key fails closed with 503', async () => {
+  identityReturns('ADMIN');
+  const saved = process.env.MAINTENANCE_AUTH_KEY;
+
+  try {
+    for (const value of [undefined, process.env.AUTH_SERVICE_KEY]) {
+      if (value === undefined) delete process.env.MAINTENANCE_AUTH_KEY;
+      else process.env.MAINTENANCE_AUTH_KEY = value;
+
+      const { status, body } = await call(DRAFT_PATH,
+        { ...AUTH_HEADER, ...serviceHeaders('maintenance', value ?? MAINTENANCE_KEY) },
+        { method: 'POST', body: DRAFT_BODY });
+      assert.equal(status, 503);
+      assert.equal(body.error.code, 'SERVICE_AUTH_UNAVAILABLE');
+    }
+  } finally {
+    process.env.MAINTENANCE_AUTH_KEY = saved;
+  }
+});
+
+test('residents cannot reach admin announcement endpoints', async () => {
+  identityReturns('RESIDENT');
+  const id = '88888888-8888-4888-8888-888888888888';
+
+  for (const [method, path] of [
+    ['POST', '/api/v1/admin/announcements'],
+    ['PATCH', '/api/v1/admin/announcements/' + id],
+    ['POST', '/api/v1/admin/announcements/' + id + '/publish'],
+    ['GET', '/api/v1/admin/announcements/' + id + '/reads']
+  ]) {
+    const { status } = await call(path, AUTH_HEADER, {
+      method,
+      body: method === 'GET' ? undefined : {}
+    });
+    assert.equal(status, 403, method + ' ' + path);
+  }
+});
+
+test('admins cannot record resident read receipts', async () => {
+  identityReturns('ADMIN');
+  const { status } = await call('/api/v1/announcements/88888888-8888-4888-8888-888888888888/read',
+    AUTH_HEADER, { method: 'POST' });
+  assert.equal(status, 403);
+});
+
+test('residents cannot widen their announcement audience with filters', async () => {
+  identityReturns('RESIDENT');
+  const { status } = await call('/api/v1/announcements?buildingId=22222222-2222-4222-8222-222222222222',
+    AUTH_HEADER);
   assert.equal(status, 400);
 });

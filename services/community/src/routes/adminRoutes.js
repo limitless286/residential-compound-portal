@@ -10,6 +10,12 @@ import {
   createPayment,
   readOverdueInvoices
 } from '../controllers/paymentController.js';
+import {
+  createAnnouncement,
+  publishAnnouncement,
+  readAnnouncementReceipts,
+  updateAnnouncement
+} from '../controllers/announcementController.js';
 
 const router = Router();
 
@@ -21,5 +27,10 @@ router.put('/fee-policy', replaceFeePolicy);
 router.post('/invoice-generations', createInvoiceGeneration);
 router.post('/payments', createPayment);
 router.get('/overdue-invoices', readOverdueInvoices);
+
+router.post('/announcements', createAnnouncement);
+router.patch('/announcements/:id', updateAnnouncement);
+router.post('/announcements/:id/publish', publishAnnouncement);
+router.get('/announcements/:id/reads', readAnnouncementReceipts);
 
 export default router;

@@ -1,6 +1,12 @@
 ﻿import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { requireAuthentication } from './middleware/requireAuthentication.js';
+import { isDatabaseUnavailable } from './config/database.js';
+import { logAction } from './utils/logger.js';
+
+// Statuses whose code and message were set deliberately by our own code
+// and are safe to return to the client.
+const EXPOSED_STATUSES = new Set([400, 401, 403, 404, 409, 413, 429, 503]);
 
 const app = express();
 app.disable('x-powered-by');
@@ -52,25 +58,33 @@ app.use((error, req, res, next) => {
     status = 413;
     code = 'PAYLOAD_TOO_LARGE';
     message = 'Request body is too large.';
-  } else if ([400, 401, 403, 503].includes(error.status)) {
+  } else if (
+    EXPOSED_STATUSES.has(error.status) &&
+    typeof error.code === 'string'
+  ) {
     status = error.status;
     code = error.code;
     message = error.message;
+  } else if (isDatabaseUnavailable(error)) {
+    status = 503;
+    code = 'DATABASE_UNAVAILABLE';
+    message = 'The database is temporarily unavailable.';
   } else {
     status = 500;
     code = 'INTERNAL_ERROR';
     message = 'An unexpected error occurred.';
   }
 
-  console.error(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    service: 'community',
+  logAction({
+    requestId: req.requestId,
     action: 'REQUEST',
     outcome: 'FAILED',
+    level: status >= 500 ? 'error' : 'warn',
+    method: req.method,
+    path: req.path,
     status,
-    code,
-    requestId: req.requestId
-  }));
+    code
+  });
 
   res.status(status).json({
     error: { code, message },

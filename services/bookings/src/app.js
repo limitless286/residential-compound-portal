@@ -52,7 +52,7 @@ app.use((error, req, res, next) => {
     status = 413;
     code = 'PAYLOAD_TOO_LARGE';
     message = 'Request body is too large.';
-  } else if ([400, 401, 403, 503].includes(error.status)) {
+  } else if ([400, 401, 403, 404, 409, 429, 503].includes(error.status)) {
     status = error.status;
     code = error.code;
     message = error.message;

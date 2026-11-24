@@ -137,7 +137,9 @@ test('residents cannot reach admin fee endpoints', async () => {
   for (const [method, path, body] of [
     ['GET', '/api/v1/admin/fee-policy'],
     ['PUT', '/api/v1/admin/fee-policy', { monthlyAmountMinor: 1, dueDay: 1 }],
-    ['POST', '/api/v1/admin/invoice-generations', { billingPeriod: '2026-12' }]
+    ['POST', '/api/v1/admin/invoice-generations', { billingPeriod: '2026-12' }],
+    ['POST', '/api/v1/admin/payments', { invoiceId: '44444444-4444-4444-8444-444444444444' }],
+    ['GET', '/api/v1/admin/overdue-invoices']
   ]) {
     const { status, body: response } = await call(path, AUTH_HEADER, { method, body });
     assert.equal(status, 403, method + ' ' + path);

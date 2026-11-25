@@ -1,0 +1,10 @@
+{
+  "TableName": "compound-login-limits",
+  "AttributeDefinitions": [
+    { "AttributeName": "key", "AttributeType": "S" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "key", "KeyType": "HASH" }
+  ],
+  "BillingMode": "PAY_PER_REQUEST"
+}

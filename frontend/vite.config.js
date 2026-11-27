@@ -12,6 +12,12 @@ export default defineConfig(({ mode }) => {
   const maintenancePrefix =
     env.MAINTENANCE_PROXY_PREFIX || '/api/v1';
 
+  const communityTarget =
+    env.COMMUNITY_PROXY_TARGET || 'http://127.0.0.1:3003';
+
+  const communityPrefix =
+    env.COMMUNITY_PROXY_PREFIX || '/api/v1';
+
   return {
     root: frontendRoot,
     envDir: frontendRoot,
@@ -33,10 +39,10 @@ export default defineConfig(({ mode }) => {
             path.replace(/^\/bookings-api/, '/api/v1')
         },
         '/community-api': {
-          target: 'http://127.0.0.1:3003',
+          target: communityTarget,
           changeOrigin: true,
           rewrite: (path) =>
-            path.replace(/^\/community-api/, '/api/v1')
+            path.replace(/^\/community-api/, communityPrefix)
         }
       }
     }

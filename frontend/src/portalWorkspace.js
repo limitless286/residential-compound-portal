@@ -1,6 +1,8 @@
 ﻿import { mountMaintenanceWorkspace } from './maintenancePage.js';
 import { mountResidentAdministration } from './residentsPage.js';
 import { mountPropertiesPage } from './propertiesPage.js';
+import { mountFeesPage } from './feesPage.js';
+import { mountAnnouncementsPage } from './announcementsPage.js';
 
 export function mountPortalWorkspace({ apiRequest, user, onUnauthorized }) {
   const root = document.createElement('div');
@@ -56,13 +58,17 @@ export function mountPortalWorkspace({ apiRequest, user, onUnauthorized }) {
     const mount = {
       maintenance: mountMaintenanceWorkspace,
       residents: mountResidentAdministration,
-      properties: mountPropertiesPage
+      properties: mountPropertiesPage,
+      fees: mountFeesPage,
+      announcements: mountAnnouncementsPage
     }[key];
 
     cleanups.set(key, mount(options));
   }
 
   registerPage('maintenance', 'Maintenance');
+  registerPage('fees', 'Fees');
+  registerPage('announcements', 'Announcements');
 
   if (user.role === 'ADMIN') {
     registerPage('residents', 'Residents');

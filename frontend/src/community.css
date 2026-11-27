@@ -1,0 +1,112 @@
+/* Community pages (fees and announcements). Scoped under .community-page
+   so shared styles in style.css are not affected. */
+
+.community-page { display: grid; gap: 22px; margin-top: 8px; }
+
+.community-card {
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+}
+.community-card h3 { margin: 0 0 6px; font-size: 18px; }
+.community-card > .muted { margin: 0 0 18px; font-size: 14px; }
+
+.community-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 18px;
+  align-items: end;
+}
+.community-form-wide { grid-template-columns: 1fr; }
+.community-form .field { margin-bottom: 16px; }
+.community-page .field select,
+.community-page .field textarea,
+.community-inline-form input {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #b7c3d3;
+  border-radius: 7px;
+  background: white;
+  color: #172b43;
+  font: inherit;
+}
+.community-page .field textarea { resize: vertical; }
+.community-page .field input[readonly] { background: #f4f6f9; color: var(--muted); }
+.community-page .primary { width: auto; }
+.community-form .button { margin-bottom: 16px; }
+
+.community-notice {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: 7px;
+  background: #eef4ff;
+  color: #254e9d;
+  font-size: 14px;
+}
+.community-page .error-message { margin-top: 4px; }
+
+.community-filters { margin-bottom: 18px; }
+.community-filters select { min-width: 180px; }
+.community-actions { display: flex; gap: 8px; white-space: nowrap; }
+
+.community-badge { text-transform: uppercase; }
+.community-unpaid { background: #ffe5e5; color: #a32929; }
+.community-partially_paid { background: #fff2ce; color: #785300; }
+.community-paid { background: #dcf4e8; color: #176441; }
+.community-overdue { background: #a32929; color: white; }
+.community-draft { background: #e9edf2; color: #4c5c70; }
+.community-scheduled { background: #e5edff; color: #254e9d; }
+.community-published { background: #dcf4e8; color: #176441; }
+.community-expired { background: #f1e9e2; color: #7a5431; }
+.community-new { background: var(--primary); color: white; }
+
+.community-detail {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f9fafc;
+}
+.community-detail h4 { margin: 0 0 6px; }
+.community-payments { margin: 12px 0; padding-left: 18px; font-size: 14px; line-height: 1.8; }
+
+.community-announcements { display: grid; gap: 14px; }
+.community-announcement {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+}
+.community-unread { border-left-color: var(--primary); background: #f7f9ff; }
+.community-announcement-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.community-announcement h4 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.community-announcement .muted { margin: 6px 0 10px; font-size: 13px; }
+.community-announcement-body {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  color: #3b4b61;
+}
+.community-announcement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.community-inline-form { display: flex; flex-wrap: wrap; gap: 10px; }
+.community-inline-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+.community-announcement-actions .community-payments { flex-basis: 100%; }
+
+@media (max-width: 650px) {
+  .community-card { padding: 18px; }
+  .community-actions { flex-direction: column; }
+}

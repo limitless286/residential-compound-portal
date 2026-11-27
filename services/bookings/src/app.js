@@ -1,6 +1,7 @@
 ﻿import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { requireAuthentication } from './middleware/requireAuthentication.js';
+import facilityRoutes from './routes/facilityRoutes.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -27,6 +28,7 @@ app.get('/api/v1/auth/me', requireAuthentication, (req, res) => {
     requestId: req.requestId
   });
 });
+app.use('/api/v1', facilityRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

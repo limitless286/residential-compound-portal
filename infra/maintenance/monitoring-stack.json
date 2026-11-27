@@ -1,0 +1,77 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Maintenance overdue alert queues",
+  "Resources": {
+    "OverdueAlertsDeadLetterQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "compound-maintenance-overdue-dlq",
+        "MessageRetentionPeriod": 1209600,
+        "VisibilityTimeout": 180
+      }
+    },
+    "OverdueAlertsQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "compound-maintenance-overdue",
+        "MessageRetentionPeriod": 345600,
+        "VisibilityTimeout": 180,
+        "ReceiveMessageWaitTimeSeconds": 20,
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "OverdueAlertsDeadLetterQueue",
+              "Arn"
+            ]
+          },
+          "maxReceiveCount": 5
+        }
+      }
+    },
+    "OverdueScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "compound-maintenance-overdue-schedule",
+        "Description": "Periodic maintenance overdue monitoring",
+        "ScheduleExpression": "rate(10 minutes)",
+        "State": "DISABLED"
+      }
+    }
+  },
+  "Outputs": {
+    "OverdueQueueUrl": {
+      "Value": {
+        "Ref": "OverdueAlertsQueue"
+      }
+    },
+    "OverdueQueueArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "OverdueAlertsQueue",
+          "Arn"
+        ]
+      }
+    },
+    "DeadLetterQueueUrl": {
+      "Value": {
+        "Ref": "OverdueAlertsDeadLetterQueue"
+      }
+    },
+    "DeadLetterQueueArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "OverdueAlertsDeadLetterQueue",
+          "Arn"
+        ]
+      }
+    },
+    "OverdueScheduleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "OverdueScheduleRule",
+          "Arn"
+        ]
+      }
+    }
+  }
+}

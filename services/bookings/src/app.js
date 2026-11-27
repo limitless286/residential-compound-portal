@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireAuthentication } from './middleware/requireAuthentication.js';
 import facilityRoutes from './routes/facilityRoutes.js';
+import bookingPolicyRoutes from './routes/bookingPolicyRoutes.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -29,6 +30,7 @@ app.get('/api/v1/auth/me', requireAuthentication, (req, res) => {
   });
 });
 app.use('/api/v1', facilityRoutes);
+app.use('/api/v1', bookingPolicyRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

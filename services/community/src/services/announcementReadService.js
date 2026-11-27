@@ -1,4 +1,4 @@
-import { getDatabase } from '../config/database.js';
+import { getDatabase, withTransaction } from '../config/database.js';
 import {
   insertReadReceipt,
   selectAnnouncementForAdmin,
@@ -31,7 +31,10 @@ const defaultDeps = {
     selectVisibleAnnouncements(getDatabase(), filters),
   selectVisibleAnnouncement: (filters) =>
     selectVisibleAnnouncement(getDatabase(), filters),
-  insertReadReceipt: (receipt) => insertReadReceipt(getDatabase(), receipt)
+  // A transaction gives both statements the bounded lock and statement
+  // timeouts; each statement still gets a fresh READ COMMITTED snapshot.
+  insertReadReceipt: (receipt) =>
+    withTransaction((client) => insertReadReceipt(client, receipt))
 };
 
 function parseBoundedInteger(value, field, defaultValue, min, max) {

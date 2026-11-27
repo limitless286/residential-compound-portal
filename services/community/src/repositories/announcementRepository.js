@@ -222,6 +222,7 @@ export async function insertReadReceipt(db, {
   buildingId,
   announcementId
 }) {
+  // Statement 1: insert the receipt if the announcement is visible.
   const result = await db.query(
     `WITH eligible AS (
        SELECT a.id
@@ -236,19 +237,38 @@ export async function insertReadReceipt(db, {
      )
      SELECT
        (SELECT COUNT(*) FROM eligible)::INTEGER AS "eligibleCount",
-       (SELECT read_at FROM inserted) AS "insertedAt",
-       (SELECT read_at FROM community.announcement_reads
-        WHERE announcement_id = $3 AND user_id = $1) AS "existingAt"`,
+       (SELECT read_at FROM inserted) AS "insertedAt"`,
     [userId, buildingId ?? null, announcementId]
   );
 
   const row = result.rows[0];
 
-  return {
-    eligible: row.eligibleCount > 0,
-    readAt: row.insertedAt ?? row.existingAt,
-    firstRead: row.insertedAt !== null
-  };
+  if (row.eligibleCount === 0) {
+    return { eligible: false, readAt: null, firstRead: false };
+  }
+
+  if (row.insertedAt !== null) {
+    return { eligible: true, readAt: row.insertedAt, firstRead: true };
+  }
+
+  // Statement 2: the receipt already exists. A separate statement is
+  // required: when a concurrent first read committed while statement 1
+  // waited on the conflict, statement 1's snapshot cannot see that row,
+  // but a new statement under READ COMMITTED can. Receipts are never
+  // updated or deleted, so this returns the original read_at.
+  const existing = await db.query(
+    `SELECT read_at AS "readAt"
+     FROM community.announcement_reads
+     WHERE announcement_id = $2 AND user_id = $1`,
+    [userId, announcementId]
+  );
+
+  if (existing.rowCount === 0 || existing.rows[0].readAt === null) {
+    // Should be impossible; fail rather than report a null readAt.
+    throw new Error('Read receipt conflicted but could not be read back.');
+  }
+
+  return { eligible: true, readAt: existing.rows[0].readAt, firstRead: false };
 }
 
 export async function selectReadReceipts(db, announcementId) {

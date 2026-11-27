@@ -1,0 +1,7 @@
+{
+  "TableName": "compound-login-limits",
+  "TimeToLiveSpecification": {
+    "Enabled": true,
+    "AttributeName": "expiresAt"
+  }
+}

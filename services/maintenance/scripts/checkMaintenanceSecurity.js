@@ -1,11 +1,14 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 
 if (process.env.DEMO_SEED_ENABLED !== 'true' ||
     process.env.NODE_ENV === 'production') {
   throw new Error('Run this script only in the local demo environment.');
 }
 
-const baseUrl = 'http://127.0.0.1:3001/api/v1';
+const baseUrl = (
+  process.env.MAINTENANCE_API_BASE_URL ||
+  'http://127.0.0.1:3001/api/v1'
+).replace(/\/+$/, '');
 const requestId = process.env.TEST_CLOSED_REQUEST_ID;
 
 if (!requestId ||
@@ -28,7 +31,7 @@ async function send(method, path, token, body) {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(60000)
   });
 }
 

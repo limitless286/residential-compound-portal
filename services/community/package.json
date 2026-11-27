@@ -3,7 +3,8 @@
     "name":  "@compound/community",
     "scripts":  {
                     "start":  "node --env-file=.env src/server.js",
-                    "dev":  "node --env-file=.env src/server.js"
+                    "dev":  "node --env-file=.env src/server.js",
+                    "test":  "node --test \"tests/**/*.test.js\""
                 },
     "type":  "module",
     "engines":  {

@@ -37,8 +37,26 @@ function showLogin(message = '') {
   document.querySelector('#login').focus();
 }
 
-async function apiRequest(path, { method = 'GET', body } = {}) {
-  const headers = { Accept: 'application/json' };
+// Same-origin proxy prefixes for each backend. Requests never carry
+// service credentials; only the signed-in user's in-memory token.
+const API_BASES = {
+  maintenance: '/maintenance-api',
+  community: '/community-api'
+};
+
+async function apiRequest(path, {
+  method = 'GET',
+  body,
+  service = 'maintenance',
+  headers: extraHeaders = {}
+} = {}) {
+  const base = API_BASES[service];
+
+  if (!base) {
+    throw new Error('Unknown service.');
+  }
+
+  const headers = { Accept: 'application/json', ...extraHeaders };
 
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
@@ -51,7 +69,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
   let response;
 
   try {
-    response = await fetch(`/maintenance-api${path}`, {
+    response = await fetch(`${base}${path}`, {
       method,
       headers,
       credentials: 'omit',
@@ -77,6 +95,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
 
     const error = new Error(message);
     error.status = response.status;
+    error.code = result?.error?.code;
     throw error;
   }
 

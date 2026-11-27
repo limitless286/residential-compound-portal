@@ -86,10 +86,10 @@ async function insertRow(label, { audienceType = 'ALL', buildingId = null, statu
   const result = await client.query(
     `INSERT INTO community.announcements
        (title, body, audience_type, building_id, status, publish_at, expires_at, created_by, approved_by)
-     VALUES ($1, 'Temporary rolled-back check row.', $2, $3, $4,
+     VALUES ($1, 'Temporary rolled-back check row.', $2, $3, $4::VARCHAR,
        CASE WHEN $5::TEXT IS NULL THEN NULL ELSE CURRENT_TIMESTAMP + $5::INTERVAL END,
        CASE WHEN $6::TEXT IS NULL THEN NULL ELSE CURRENT_TIMESTAMP + $6::INTERVAL END,
-       $7, CASE WHEN $4 = 'DRAFT' THEN NULL ELSE $7::UUID END)
+       $7, CASE WHEN $4::VARCHAR = 'DRAFT' THEN NULL ELSE $7::UUID END)
      RETURNING id`,
     ['CHECK ' + label, audienceType, buildingId, status, publishOffset ?? null, expireOffset ?? null, args.admin]
   );

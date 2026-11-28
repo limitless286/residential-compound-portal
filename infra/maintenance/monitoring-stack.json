@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Maintenance overdue alert queues",
+  "Description": "Maintenance overdue monitoring queues, schedule, worker roles and log groups",
   "Resources": {
     "OverdueAlertsDeadLetterQueue": {
       "Type": "AWS::SQS::Queue",
@@ -34,7 +34,154 @@
         "Name": "compound-maintenance-overdue-schedule",
         "Description": "Periodic maintenance overdue monitoring",
         "ScheduleExpression": "rate(10 minutes)",
-        "State": "DISABLED"
+        "State": "DISABLED",
+        "Targets": [
+          {
+            "Id": "maintenance-overdue-scanner",
+            "Arn": "arn:aws:lambda:us-east-1:000000000000:function:compound-maintenance-overdue-scanner",
+            "RetryPolicy": {
+              "MaximumEventAgeInSeconds": 3600,
+              "MaximumRetryAttempts": 2
+            }
+          }
+        ]
+      }
+    },
+    "ScannerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/compound-maintenance-overdue-scanner",
+        "RetentionInDays": 14
+      }
+    },
+    "ScannerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "compound-maintenance-overdue-scanner-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "overdue-scanner-runtime",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadMonitorDatabase",
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": {
+                    "Ref": "MonitorSecretArn"
+                  }
+                },
+                {
+                  "Sid": "OwnLogs",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "arn:aws:logs:us-east-1:000000000000:log-group:/aws/lambda/compound-maintenance-overdue-scanner:*"
+                },
+                {
+                  "Sid": "ReadMonitorSettings",
+                  "Effect": "Allow",
+                  "Action": "ssm:GetParameter",
+                  "Resource": "arn:aws:ssm:us-east-1:000000000000:parameter/compound/maintenance/overdue-monitor"
+                },
+                {
+                  "Sid": "EnqueueOverdueWork",
+                  "Effect": "Allow",
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "OverdueAlertsQueue",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ConsumerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/compound-maintenance-overdue-consumer",
+        "RetentionInDays": 14
+      }
+    },
+    "ConsumerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "compound-maintenance-overdue-consumer-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "overdue-consumer-runtime",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadMonitorDatabase",
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": {
+                    "Ref": "MonitorSecretArn"
+                  }
+                },
+                {
+                  "Sid": "OwnLogs",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "arn:aws:logs:us-east-1:000000000000:log-group:/aws/lambda/compound-maintenance-overdue-consumer:*"
+                },
+                {
+                  "Sid": "ConsumeOverdueWork",
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes",
+                    "sqs:ChangeMessageVisibility"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "OverdueAlertsQueue",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
     }
   },
@@ -72,6 +219,29 @@
           "Arn"
         ]
       }
+    },
+    "ScannerRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ScannerRole",
+          "Arn"
+        ]
+      }
+    },
+    "ConsumerRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ConsumerRole",
+          "Arn"
+        ]
+      }
+    }
+  },
+  "Parameters": {
+    "MonitorSecretArn": {
+      "Type": "String",
+      "AllowedPattern": "arn:aws:secretsmanager:us-east-1:000000000000:secret:compound/maintenance/overdue/database-[A-Za-z0-9]{6}",
+      "Description": "Database-only secret ARN; no secret values in the template"
     }
   }
 }

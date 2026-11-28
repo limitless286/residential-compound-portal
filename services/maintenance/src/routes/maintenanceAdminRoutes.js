@@ -1,4 +1,5 @@
-﻿import { editUnitRecord } from '../controllers/unitEditController.js';
+import { overdueNotifications } from '../controllers/overdueNotificationsController.js';
+import { editUnitRecord } from '../controllers/unitEditController.js';
 import { editBuildingRecord } from '../controllers/buildingEditController.js';
 import { editResidentRecord } from '../controllers/residentEditController.js';
 import { listResidentRecords, changeResidentStatusRecord } from '../controllers/residentManagementController.js';
@@ -24,6 +25,7 @@ router.use((req, res, next) => {
 router.use(requireAuthentication, requireRole('ADMIN'));
 
 router.get('/maintenance-overview', maintenanceOverview);
+router.get('/overdue-notifications', overdueNotifications);
 
 router.get('/buildings', listBuildingRecords);
 router.post('/buildings', createBuildingRecord);

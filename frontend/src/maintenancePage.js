@@ -1,4 +1,5 @@
-﻿import { mountMaintenanceOverview } from './maintenanceOverview.js';
+import { mountOverdueNotifications } from './overdueNotifications.js';
+import { mountMaintenanceOverview } from './maintenanceOverview.js';
 import { mountRequestActions } from './requestActions.js';
 import { mountRequestCreation } from './createRequest.js';
 const statusLabels = {
@@ -310,7 +311,7 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized, co
         apiRequest,
         onUpdated: async () => {
           await loadDetails(id, 'Request updated successfully.');
-          await overview.refresh();
+          await Promise.all([overview.refresh(), alerts.refresh()]);
         },
         onUnauthorized
       });
@@ -354,6 +355,14 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized, co
     }
   });
 
+  const alerts = mountOverdueNotifications({
+    anchor: root, user, apiRequest, onUnauthorized,
+    onOpenRequest: id => {
+      loadDetails(id);
+      root.scrollIntoView({ block: 'start' });
+    }
+  });
+
   const cleanupRequestCreation = mountRequestCreation({
     anchor: root,
     apiRequest,
@@ -368,6 +377,7 @@ export function mountMaintenanceWorkspace({ apiRequest, user, onUnauthorized, co
   return () => {
     cleanupRequestActions?.();
     overview.destroy();
+    alerts.destroy();
     cleanupRequestCreation();
     active = false;
     viewVersion++;

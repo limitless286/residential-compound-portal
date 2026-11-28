@@ -1,4 +1,4 @@
-﻿import { validateMonitorConfig } from '../config/overdueMonitorConfig.js';
+import { validateMonitorConfig } from '../config/overdueMonitorConfig.js';
 
 const JOB_TYPE = 'MAINTENANCE_OVERDUE_V1';
 const UUID_PATTERN =
@@ -9,10 +9,12 @@ function requireIso(value) {
     throw new Error('Invalid overdue job timestamp.');
   }
 
-  const timestamp = Date.parse(value);
+  // Preserve PostgreSQL microseconds while checking the calendar at millisecond precision.
+  const normalized = value.replace(/(\.\d{3})\d{3}Z$/, '$1Z');
+  const timestamp = Date.parse(normalized);
 
   if (!Number.isFinite(timestamp) ||
-      new Date(timestamp).toISOString() !== value) {
+      new Date(timestamp).toISOString() !== normalized) {
     throw new Error('Invalid overdue job timestamp.');
   }
 
@@ -20,11 +22,13 @@ function requireIso(value) {
 }
 
 export function validateOverdueJob(value, now = new Date()) {
-  const allowed = ['type', 'requestId', 'dueAt', 'windowStart'];
+  const allowed = ['type', 'requestId', 'dueAt', 'windowStart', 'repeatAfterHours'];
 
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).some(key => !allowed.includes(key)) ||
       value.type !== JOB_TYPE ||
+      !Number.isSafeInteger(value.repeatAfterHours) ||
+      value.repeatAfterHours < 1 || value.repeatAfterHours > 168 ||
       typeof value.requestId !== 'string' ||
       !UUID_PATTERN.test(value.requestId)) {
     throw new Error('Invalid overdue notification job.');
@@ -43,7 +47,8 @@ export function validateOverdueJob(value, now = new Date()) {
     type: JOB_TYPE,
     requestId: value.requestId.toLowerCase(),
     dueAt: value.dueAt,
-    windowStart: value.windowStart
+    windowStart: value.windowStart,
+    repeatAfterHours: value.repeatAfterHours
   };
 }
 
@@ -74,7 +79,8 @@ export async function scanOverdueRequests({
   const requests = await findOverdue({
     asOf: currentTime.toISOString(),
     windowStart,
-    limit: config.batchSize
+    limit: config.batchSize,
+    repeatAfterHours: config.repeatAfterHours
   });
 
   if (!Array.isArray(requests) || requests.length > config.batchSize) {
@@ -85,7 +91,8 @@ export async function scanOverdueRequests({
     type: JOB_TYPE,
     requestId: request.requestId,
     dueAt: request.dueAt,
-    windowStart
+    windowStart,
+    repeatAfterHours: config.repeatAfterHours
   }, currentTime));
 
   if (jobs.length > 0) {

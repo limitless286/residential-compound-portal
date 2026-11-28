@@ -1,13 +1,16 @@
-﻿function toIso(value) {
+import { withMonitorTransaction } from '../utils/monitorTransaction.js';
+
+function toIso(value) {
   return new Date(value).toISOString();
 }
 
 export async function findUnnotifiedOverdue(
   database,
-  { asOf, windowStart, limit }
+  { asOf, windowStart, limit, repeatAfterHours }
 ) {
   const result = await database.query(
-    `SELECT r.id, r.due_at
+    `SELECT r.id,
+       to_char(r.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS due_at
      FROM maintenance.requests r
      WHERE r.status IN ('OPEN', 'IN_PROGRESS')
        AND r.due_at < $1::timestamptz
@@ -16,44 +19,61 @@ export async function findUnnotifiedOverdue(
          FROM maintenance.overdue_notifications n
          WHERE n.request_id = r.id
            AND n.due_at = r.due_at
-           AND n.window_start = $2::timestamptz
+           AND (n.window_start = $2::timestamptz
+                OR n.created_at > $1::timestamptz - make_interval(hours => $4::integer))
        )
      ORDER BY r.due_at ASC, r.id ASC
      LIMIT $3`,
-    [asOf, windowStart, limit]
+    [asOf, windowStart, limit, repeatAfterHours]
   );
 
   return result.rows.map(row => ({
     requestId: row.id,
-    dueAt: toIso(row.due_at)
+    dueAt: row.due_at
   }));
 }
 
 export async function recordOverdueNotification(database, job) {
-  // Recheck the current request before writing. A resolved request or a
-  // changed deadline makes the queued job obsolete.
-  //
-  // The unique constraint handles simultaneous deliveries and retries.
-  const result = await database.query(
-    `INSERT INTO maintenance.overdue_notifications (
-       request_id, due_at, window_start, priority
-     )
-     SELECT r.id, r.due_at, $3::timestamptz, r.priority
-     FROM maintenance.requests r
-     WHERE r.id = $1::uuid
-       AND r.due_at = $2::timestamptz
-       AND r.status IN ('OPEN', 'IN_PROGRESS')
-       AND r.due_at < CURRENT_TIMESTAMP
-       AND $3::timestamptz <= CURRENT_TIMESTAMP
-     ON CONFLICT (request_id, due_at, window_start) DO NOTHING
-     RETURNING id`,
-    [job.requestId, job.dueAt, job.windowStart]
-  );
+  return withMonitorTransaction(database, async client => {
+    // Serialize alerts with each other and with the normal request workflow.
+    const request = await client.query(
+      `SELECT id FROM maintenance.requests
+       WHERE id = $1::uuid AND due_at = $2::timestamptz
+         AND status IN ('OPEN', 'IN_PROGRESS')
+         AND due_at < CURRENT_TIMESTAMP
+         AND $3::timestamptz <= CURRENT_TIMESTAMP
+       FOR UPDATE`,
+      [job.requestId, job.dueAt, job.windowStart]
+    );
+    if (!request.rowCount) return { created: false, notificationId: null };
 
-  return {
-    created: result.rows.length === 1,
-    notificationId: result.rows[0]?.id ?? null
-  };
+    // A separate statement sees any notification committed while waiting for
+    // the row lock. Cooldown applies across calendar/window boundaries too.
+    const recent = await client.query(
+      `SELECT id FROM maintenance.overdue_notifications
+       WHERE request_id = $1::uuid AND due_at = $2::timestamptz
+         AND created_at > statement_timestamp() - make_interval(hours => $3::integer)
+       LIMIT 1`,
+      [job.requestId, job.dueAt, job.repeatAfterHours]
+    );
+    if (recent.rowCount) return { created: false, notificationId: null };
+
+    const result = await client.query(
+      `INSERT INTO maintenance.overdue_notifications (
+         request_id, due_at, window_start, priority
+       )
+       SELECT r.id, r.due_at, $3::timestamptz, r.priority
+       FROM maintenance.requests r WHERE r.id = $1::uuid
+         AND r.due_at = $2::timestamptz
+       ON CONFLICT (request_id, due_at, window_start) DO NOTHING
+       RETURNING id`,
+      [job.requestId, job.dueAt, job.windowStart]
+    );
+    return {
+      created: result.rowCount === 1,
+      notificationId: result.rows[0]?.id ?? null
+    };
+  });
 }
 
 export async function listOverdueNotifications(database, { limit }) {

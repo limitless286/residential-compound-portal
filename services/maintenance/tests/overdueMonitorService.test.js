@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   scanOverdueRequests,
@@ -20,7 +20,8 @@ function job() {
     type: 'MAINTENANCE_OVERDUE_V1',
     requestId,
     dueAt: '2026-11-26T12:00:00.000Z',
-    windowStart: '2026-11-27T00:00:00.000Z'
+    windowStart: '2026-11-27T00:00:00.000Z',
+    repeatAfterHours: 24
   };
 }
 
@@ -55,7 +56,8 @@ test('scan uses configured batch size and sends minimal job data', async () => {
       assert.deepEqual(options, {
         asOf: '2026-11-27T12:00:00.000Z',
         windowStart: '2026-11-27T00:00:00.000Z',
-        limit: 50
+        limit: 50,
+        repeatAfterHours: 24
       });
 
       return [{
@@ -170,4 +172,27 @@ test('database failure is propagated instead of reporting successful processing'
       throw new Error('Database unavailable');
     }
   }), /Database unavailable/);
+});
+
+
+test('PostgreSQL microseconds survive scan and consumer validation unchanged', async () => {
+  const dueAt = '2026-11-26T12:00:00.123456Z';
+  let queued;
+  await scanOverdueRequests({
+    readConfig: async () => config,
+    findOverdue: async () => [{ requestId, dueAt }],
+    enqueueJobs: async jobs => { queued = jobs; },
+    now: clock
+  });
+  assert.equal(queued[0].dueAt, dueAt);
+  await processOverdueJob(queued[0], {
+    now: clock,
+    recordNotification: async value => {
+      assert.equal(value.dueAt, dueAt);
+      return { created: true, notificationId: 'precise-notification' };
+    }
+  });
+  for (const invalid of ['2026-02-30T12:00:00.123456Z', '2026-11-26T12:00:00.1234Z']) {
+    assert.throws(() => validateOverdueJob({ ...job(), dueAt: invalid }, clock()));
+  }
 });
